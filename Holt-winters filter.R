@@ -1,6 +1,9 @@
 #install.packages(c("forecast", "TTR"), dependencies=TRUE,repos="https://cloud.r-project.org")
 library("forecast")								# install "forecast" package and load the library	
+library("tseries") 
+
 data<-read.csv("sample_data.csv", sep=",",dec=".",header=T) 	# weekly data
+
 names(data)
 head(data,5)
 
@@ -80,5 +83,61 @@ forecast::accuracy(out44)
 # also see that combination 4 has the narrowest confidence interval, which means it has a more accurate fit.
 # Therefore, we choose combination 4, out4 = HoltWinters(yy, beta = FALSE, gamma = TRUE), as our final model.
 
+# ARIMA
+sales_auto = auto.arima(yy)		# fits ARIMA(p,d,q) x (P, D, Q) automatically
+sales_auto.predict = forecast:::forecast.Arima(sales_auto, h = 26, level = c(68, 95))
+plot(sales_auto.predict)
+forecast::accuracy(sales_auto.predict)
 
+## Step 1. Is the time series stationary? 
+
+# Use Augmented Dickey-Fuller Test to test stationarity == > large p-value means nonstationary
+
+adf.test(yy)				# if p-value is large (> 0.10), then nonstationary
+
+yd = diff(yy,differences = 1)			
+plot.ts(yd)								# looks stationary visually
+adf.test(yd)							# estimated p = 0.01 => small p-value (< 0.10) => so yd is stationary ==> fix d = 1 in ARIMA models to be fitted
+
+
+## Step 2. Decide AR(p) or MA(q) or both ARMA(p,q). Use the stationary series from Step 1. 
+
+# To decide AR(p), plot Pacf. For AR(p) => Pacf becomes zero at some lag p
+
+Pacf(yd, lag.max = 10)					# Pacf suggests p = 1
+
+
+# To decide MA, plot Acf. For MA(q) => Acf becomes zero at some lag q
+
+Acf(yd, lag.max = 10)				# Acf suggests q = 1
+
+## Step 3. Fit several ARIMA models. 	
+
+m1 = Arima(yy, order=c(1,1,0))			# note: differencing (d = 1) is specified in the "order"; so fit the original yy series (yy, not yd)
+m1				# see the output of m1. The estimated phi value and its std err to assess significnace
+summary(m1)		# see Accuracy using MAPE = Mean Absolute Percentage Error 
+
+m2 = Arima(yy, order=c(2,1,0))
+m2
+summary(m2)	
+
+m3 = Arima(yy, order=c(1,1,1))	
+m3
+summary(m3)	
+
+m4 = Arima(yy, order=c(2,1,1))	
+m4
+summary(m4)	
+
+# Consider Seasonal ARIMA(p,d,q) x (P, D, Q) components when seasonality is expected/suspected
+m5 = Arima(yy, order=c(1,1,0), seasonal = list(order = c(0,0,1), period = 52))
+summary(m5)
+
+m6 = Arima(yy, order=c(2,1,0), seasonal = list(order = c(0,1,0), period = 52))
+summary(m6)
+m6.predict = forecast:::forecast.Arima(m6, h = 26, level = c(68, 95))
+plot(m6.predict)
+
+
+#m6 has the least MAPE with stationarity.
 
